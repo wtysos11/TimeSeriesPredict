@@ -63,6 +63,7 @@ x3 = w*np.arange(2*unit,3*unit,factor)+b2
 y1 = np.array(list(map(math.sin,x1)))
 y2 = 2*np.array(list(map(math.sin,x2)))
 y3 = 4*np.array(list(map(math.sin,x3)))
+
 y = np.concatenate((y1,y2,y3))
 y_true = y
 x = np.arange(0,3*unit,factor)
@@ -127,3 +128,4 @@ plt.figure()
 plt.plot(x,y_pred,c='red')
 plt.plot(x,y_origin,c='blue')
 plt.show()
+
