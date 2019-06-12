@@ -100,13 +100,13 @@ X_train = np.reshape(X_train,(len(X_train),1,w))
 X_test = np.reshape(X_test,(len(X_test),1,w))
 
 model = Sequential()
-model.add(LSTM(32, return_sequences=True, input_shape=(x_train.shape[1], 1)))
+model.add(LSTM(32, return_sequences=True, input_shape=(X_train.shape[1], 1)))
 model.add(LSTM(32, return_sequences=True))
 model.add(LSTM(32))
 model.add(Dense(1))
 model.compile(loss='mean_squared_error',optimizer='adam')
 
-fit = model.fit(X_train, y_train, batch_size=32, epochs=100, validation_split=0.2, shuffle=False)
+fit = model.fit(X_train, y_train, batch_size=32, epochs=10, validation_split=0.2, shuffle=False)
 
 pred_rnn = model.predict(X_test,batch_size=32)
 
