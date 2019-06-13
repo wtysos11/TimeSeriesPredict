@@ -217,3 +217,39 @@ for i,index in enumerate(data_list):
     plt.plot(x1,y2)
     plt.plot(x1,y3)
     plt.show()
+
+#机器学习方法，随机森林
+from sklearn.ensemble import RandomForestRegressor
+for i in range(1):
+    index = data_list[i]
+    
+    begin = time.time()
+    data = np.array(data_list[i],'f')
+    X_train = data[:split_num]
+    y_train = data[1:split_num+1]
+    X_test = data[split_num:-1]
+    y_test = data[split_num+1:]
+    xsc = MinMaxScaler()
+    ysc = MinMaxScaler()
+    X_train = np.reshape(X_train,(-1,1))
+    y_train = np.reshape(y_train,(-1,1))
+    X_train = xsc.fit_transform(X_train)
+    y_train = ysc.fit_transform(y_train)
+    #进行训练
+    regressor = RandomForestRegressor(n_estimators=100,max_depth=5,n_jobs = -1)
+    regressor.fit(X_train,y_train.ravel())
+    #开始预测
+    inputs = X_test
+    inputs = np.reshape(inputs,(-1,1))
+    inputs = xsc.transform(inputs)
+    y_pred = regressor.predict(inputs)
+    y_pred = y_pred.reshape(-1,1)
+    y_pred = ysc.inverse_transform(y_pred)
+    
+    end = time.time()
+    print('total time for {} is {}s'.format(i,end-begin))
+    plt.plot(y_pred,label='predict')
+    plt.plot(y_test,label='true')
+    plt.legend(loc='upper right')
+    plt.show()
+    
