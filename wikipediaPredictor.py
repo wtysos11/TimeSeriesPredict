@@ -119,7 +119,6 @@ for i,index in enumerate(data_list):
 
 
 #Keras 3层LSTM + 滑动窗口
-#效果上而言预测精度堪忧
 from sklearn.preprocessing import MinMaxScaler
 from keras.models import Sequential
 from keras.layers import Dense
@@ -146,7 +145,7 @@ for i,index in enumerate(data_list):
     y_train = ysc.fit_transform(y_train)
     X_train = np.reshape(X_train,(-1,1,1))
     
-    window_size = 48
+    window_size = 10
     x = []
     for t in range(len(X_train)-window_size):
         a = X_train[t:t+window_size]
@@ -157,18 +156,17 @@ for i,index in enumerate(data_list):
     #Keras LSTM
     begin = time.time()
     regressor = Sequential()
-    regressor.add(LSTM(32, return_sequences=True, input_shape=(x.shape[1], window_size)))
-    regressor.add(LSTM(32, return_sequences=True))
-    regressor.add(LSTM(32))
+    regressor.add(LSTM(8, return_sequences=True, input_shape=(x.shape[1], window_size)))
+    regressor.add(LSTM(8, return_sequences=True))
+    regressor.add(LSTM(8))
     regressor.add(Dense(1))
     regressor.compile(loss='mean_squared_error',optimizer='adam')
-    regressor.fit(x, y_train, batch_size = 32, epochs = 100, verbose = 0.2,shuffle=False)
+    regressor.fit(x, y_train, batch_size = 8, epochs = 100, verbose = 0.2,shuffle=False)
     #进入测试环节
     inputs = X_test
     inputs = np.reshape(inputs,(-1,1))
     inputs = xsc.transform(inputs)
     inputs = np.reshape(inputs,(-1,1,1))
-    window_size = 48
     x = []
     for t in range(len(inputs)-window_size):
         a = inputs[t:t+window_size]
