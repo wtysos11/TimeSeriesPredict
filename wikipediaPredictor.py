@@ -189,3 +189,33 @@ for i,index in enumerate(data_list):
     plt.ylabel('Web View')
     plt.legend()
     plt.show()
+
+#facebook prophet
+from fbprophet import Prophet
+split_factor = 0.8
+split_num = int(len(data_list[0])*split_factor)
+cols = train.columns[1:-1]
+
+for i,index in enumerate(data_list):
+    begin = time.time()
+    df = pd.DataFrame(data_list[i])
+    df.columns = ['y']
+    df['ds'] = cols
+    train_data = df[:split_num]
+    predictor = Prophet()
+    predictor.fit(train_data)
+    #进行预测
+    future = predictor.make_future_dataframe(periods = len(data_list[0])-split_num)
+    forecast = predictor.predict(future)
+    end = time.time()
+    print('total time for {} is {}s'.format(i,end-begin))
+    x1 = forecast['ds']
+    y1 = forecast['yhat']
+    y2 = forecast['yhat_lower']
+    y3 = forecast['yhat_upper']
+    ans = df['y']
+    plt.plot(x1,ans,'m',label='origin')
+    plt.plot(x1,y1,'r',label='predict')
+    plt.plot(x1,y2)
+    plt.plot(x1,y3)
+    plt.show()
