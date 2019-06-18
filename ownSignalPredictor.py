@@ -118,3 +118,79 @@ plt.xlabel('Number of Days from Start')
 plt.ylabel('Web View')
 plt.legend()
 plt.show()
+
+
+#使用小波分解分解原信号，然后使用ARMA进行预测，并重新组装
+#使用小波变换分解原信号，并将其预测，然后组装起来
+import numpy as np
+from matplotlib import pyplot as plt
+import pandas as pd
+import pywt
+import statsmodels.api as sm
+from statsmodels.tsa.ar_model import AR
+from statsmodels.tsa.arima_model import ARIMA,ARMA
+from sklearn.preprocessing import MinMaxScaler
+
+split_factor = 0.8
+split_num = int(len(data_list[0])*split_factor)
+cols = train.columns[1:-1]
+
+data = np.array(y,'f')
+#进行切分
+X_train = data[:split_num]
+y_train = data[1:split_num+1]
+X_test = data[split_num:-1]
+y_test = data[split_num+1:]
+xsc = MinMaxScaler()
+ysc = MinMaxScaler()
+X_train = np.reshape(X_train,(-1,1))
+y_train = np.reshape(y_train,(-1,1))
+X_train = xsc.fit_transform(X_train)
+y_train = ysc.fit_transform(y_train)
+X_train = np.reshape(X_train,(-1))
+y_train = np.reshape(y_train,(-1))
+A2,D2,D1 = pywt.wavedec(X_train,'db4',mode='sym',level=2)
+
+order_A2 = sm.tsa.arma_order_select_ic(A2,ic='aic')['aic_min_order']
+order_D2 = sm.tsa.arma_order_select_ic(D2,ic='aic')['aic_min_order']
+order_D1 = sm.tsa.arma_order_select_ic(D1,ic='aic')['aic_min_order']
+
+model_A2 = ARMA(A2,order = order_A2)
+model_D2 = ARMA(D2,order = order_D2)
+model_D1 = ARMA(D1,order = order_D1)
+
+results_A2 = model_A2.fit()
+results_D2 = model_D2.fit()
+results_D1 = model_D1.fit()
+#输出信号分解后的拟合曲线
+plt.figure()
+plt.subplot(3,1,1)
+plt.plot(A2,color = 'blue')
+plt.plot(results_A2.fittedvalues,color = 'red')
+plt.title('model_A2')
+plt.subplot(3,1,2)
+plt.plot(D2,color = 'blue')
+plt.plot(results_D2.fittedvalues,color = 'red')
+plt.title('model_D2')
+plt.subplot(3,1,3)
+plt.plot(D1,color = 'blue')
+plt.plot(results_D1.fittedvalues,color = 'red')
+plt.title('model_D1')
+plt.show()
+#再次分解后进行预测
+A2_all,D2_all,D1_all = pywt.wavedec(data[:-1],'db4',mode='sym',level=2)
+pA2 = model_A2.predict(params = results_A2.params,start = 1,end = len(A2_all))
+pD2 = model_D2.predict(params = results_D2.params,start = 1,end = len(D2_all))
+pD1 = model_D1.predict(params = results_D1.params,start = 1,end = len(D1_all))
+denoised_index = pywt.waverec([pA2,pD2,pD1],'db4')
+denoised_index = denoised_index.reshape(-1,1)
+denoised_index = xsc.inverse_transform(denoised_index)
+denoised_index = denoised_index.reshape(-1)
+plt.figure()
+plt.plot(data[:-1],color = 'blue')
+plt.plot(denoised_index,color = 'red')
+plt.show()
+plt.figure()
+plt.plot(data[split_num+1:],color = 'blue')
+plt.plot(denoised_index[split_num+1:],color = 'red')
+plt.show()
