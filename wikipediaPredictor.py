@@ -218,7 +218,7 @@ for i,index in enumerate(data_list):
     plt.plot(x1,y3)
     plt.show()
 
-#机器学习方法，随机森林
+#机器学习方法，随机森林（整体思想）
 from sklearn.ensemble import RandomForestRegressor
 for i in range(1):
     index = data_list[i]
@@ -253,3 +253,185 @@ for i in range(1):
     plt.legend(loc='upper right')
     plt.show()
     
+
+#ARIMA具体研究，使用顶层数据8
+df = pd.DataFrame(data_list[8])
+df.columns = ['y']
+train_data = df[:split_num]
+data = train_data
+data.head()
+# 时间序列是稳定的，意味着它的一些统计信息，比如平均值和方差等不怎么随时间变化
+#使用Dickey-Fuller Test来检验stationary
+from pandas.plotting import autocorrelation_plot
+autocorrelation_plot(train_data)
+#Dickey-Fuller Test:负的越多，拒绝null假设的概率越大，序列稳定的可能性越高。小于某个值代表达到某个可能性
+from statsmodels.tsa.stattools import adfuller
+X = train_data.values.reshape(-1,1)
+X = X.ravel()
+result = adfuller(X)
+print('ADF Statistic: %f' % result[0])
+print('p-value: %f' % result[1])
+print('Critical Values:')
+for key, value in result[4].items():
+	print('\t%s: %.3f' % (key, value))
+#非常简单的时间序列拆分：线性数据+周期性数据+残差
+from statsmodels.tsa.seasonal import seasonal_decompose
+x = train_data.values.astype('int32').ravel()
+decomposition = seasonal_decompose(x, model='multiplicative',freq = 7)
+trend = decomposition.trend
+seasonal = decomposition.seasonal
+residual = decomposition.resid
+plt.plot(trend)
+plt.show()
+#一般使用ACF和PACF来决定p和q的值
+from statsmodels.tsa.stattools import acf, pacf
+ts_log_diff = train_data.diff(1)
+ts_log_diff.dropna(inplace=True)
+lag_acf = acf(ts_log_diff, nlags=20)
+lag_pacf = pacf(ts_log_diff, nlags=20)
+#Plot ACF: 
+plt.subplot(121) 
+plt.plot(lag_acf)
+plt.axhline(y=0,linestyle='--',color='gray')
+plt.axhline(y=-1.96/np.sqrt(len(ts_log_diff)),linestyle='--',color='gray')
+plt.axhline(y=1.96/np.sqrt(len(ts_log_diff)),linestyle='--',color='gray')
+plt.title('Autocorrelation Function')
+#Plot PACF:
+plt.subplot(122)
+plt.plot(lag_pacf)
+plt.axhline(y=0,linestyle='--',color='gray')
+plt.axhline(y=-1.96/np.sqrt(len(ts_log_diff)),linestyle='--',color='gray')
+plt.axhline(y=1.96/np.sqrt(len(ts_log_diff)),linestyle='--',color='gray')
+plt.title('Partial Autocorrelation Function')
+plt.tight_layout()
+#p与q的值取第一个过上置信边界的值
+
+
+for i in range(10):
+    df = pd.DataFrame(data_list[i])
+    df.columns = ['y']
+    train_data = df[:split_num]
+    ts_log_diff = train_data.diff(1)
+    ts_log_diff.dropna(inplace=True)
+    lag_acf = acf(ts_log_diff, nlags=20)
+    lag_pacf = pacf(ts_log_diff, nlags=20)
+    #Plot ACF: 
+    plt.subplot(121) 
+    plt.plot(lag_acf)
+    plt.axhline(y=0,linestyle='--',color='gray')
+    plt.axhline(y=-1.96/np.sqrt(len(ts_log_diff)),linestyle='--',color='gray')
+    plt.axhline(y=1.96/np.sqrt(len(ts_log_diff)),linestyle='--',color='gray')
+    plt.title('Autocorrelation Function')
+    #Plot PACF:
+    plt.subplot(122)
+    plt.plot(lag_pacf)
+    plt.axhline(y=0,linestyle='--',color='gray')
+    plt.axhline(y=-1.96/np.sqrt(len(ts_log_diff)),linestyle='--',color='gray')
+    plt.axhline(y=1.96/np.sqrt(len(ts_log_diff)),linestyle='--',color='gray')
+    plt.title('Partial Autocorrelation Function')
+    plt.tight_layout()
+    #p与q的值取第一个过上置信边界的值
+    a = max(-1.96/np.sqrt(len(ts_log_diff),1.96/np.sqrt(len(ts_log_diff))
+    p = 1
+    q = 1
+    for ele in lag_acf:
+        if ele<a:
+            break
+        p+=1
+    for ele in lag_pacf:
+        if ele<a:
+            break
+        q+=1
+    print(p,q)
+    
+#进行预测，并与diff1进行比较
+from statsmodels.tsa.arima_model import ARIMA
+x = train_data.values.astype('int32').ravel()
+model = ARIMA(x, order=(4,1,4))  
+results_AR = model.fit(disp=-1)  
+plt.plot(ts_log_diff)
+plt.plot(results_AR.fittedvalues, color='red')
+plt.title('RSS: %.4f'% sum((results_AR.fittedvalues-ts_log_diff.values.astype('int32').ravel())**2))
+plt.show()
+
+
+#尝试滑动窗口ARIMA
+#制作滑动窗口，预测，然后放入？
+window_size = 40
+for i in range(1):
+    index = data_list[i]
+
+    begin = time.time()
+    data = np.array(data_list[i],'f')
+    
+    #切分训练数据
+    for t in range(len(data)-window_size):
+        train_data = data[t:t+window_size]
+        arima = ARIMA(train_data,[2,1,4])
+        result = arima.fit(disp=False)
+        pred = result.predict(2,len(data_list[i])-1,typ='levels')
+    
+    
+    
+
+    #print(result.params)
+    
+    end = time.time()
+    print('predict time:{}'.format(end-begin))
+    x = [i for i in range(len(data_list[i]))]
+    plt.plot(x,data,label='Data')
+    plt.plot(x[2:],pred,label='ARIMA Model')
+    plt.title('Page{}'.format(i))
+    plt.xlabel('Days')
+    plt.ylabel('Views')
+    plt.legend()
+    plt.show()
+
+
+#RandomForestRegressor 进行sliding window
+from sklearn.ensemble import RandomForestRegressor
+# RandomForestRegressor
+for i,index in enumerate(data_list):
+    begin = time.time()
+    data = np.array(data_list[i],'f')
+    sc = MinMaxScaler()
+    data = np.reshape(data,(-1,1))
+    data = sc.fit_transform(data)
+    window_size = 20
+    y_pred = []
+    for t in range(len(data)-window_size-1):
+        #进行训练
+        regressor = RandomForestRegressor(n_estimators=window_size//2,n_jobs = -1)
+        regressor.fit(data[t:t+window_size],data[t+1:t+window_size+1].ravel())
+        #开始预测
+        inputs = [data[t+window_size+1]]
+        inputs = np.reshape(inputs,(-1,1))
+        pred = regressor.predict(inputs)
+        pred = pred.reshape(-1,1)
+        pred = sc.inverse_transform(pred)
+        y_pred.append(pred[0])
+    
+    data = sc.inverse_transform(data)
+    y_test = data[window_size+2:]
+    end = time.time()
+    print('total time for {} is {}s'.format(i,end-begin))
+    plt.plot(y_pred,label='predict')
+    plt.plot(y_test,label='true')
+    plt.legend(loc='upper right')
+    plt.show()
+    
+
+#生成一个更为有规律的序列，同样为500个左右
+import numpy as np
+import math
+x = np.linspace(1,500,500)
+para = np.random.rand(3,10)
+A = para[0]
+w = para[1]
+b = para[2]
+y = np.zeros(500)
+for i,_ in enumerate(y):
+    ans = 0
+    for j in range(len(A)):
+        ans += A[j] * math.sin(w[j]*x[i]+b[j])
+    y[i] = ans + random.randint(int(-0.05*ans),int(0.05*ans))
