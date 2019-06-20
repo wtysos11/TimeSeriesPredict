@@ -327,5 +327,162 @@ for i,index in enumerate(data_list):
     plt.show()
     print(mean_squared_error(y_true,y_pred))
 
-# 随机森林，裸在线训练
+# 随机森林，裸在线训练（仅根据前一时刻预测下一时刻）
+from sklearn.ensemble import RandomForestRegressor
+window_size = 40
+# RandomForestRegressor
+for i,index in enumerate(data_list):
+    begin = time.time()
+    data = np.array(data_list[i],'f')
+    sc = MinMaxScaler()
+    data = np.reshape(data,(-1,1))
+    data = sc.fit_transform(data)
+    y_pred = []
+    for t in range(len(data)-window_size-1):
+        #进行训练
+        regressor = RandomForestRegressor(n_estimators=window_size//2,n_jobs = -1)
+        regressor.fit(data[t:t+window_size],data[t+1:t+window_size+1].ravel())
+        #开始预测
+        inputs = [data[t+window_size+1]]
+        inputs = np.reshape(inputs,(-1,1))
+        pred = regressor.predict(inputs)
+        pred = pred.reshape(-1,1)
+        pred = sc.inverse_transform(pred)
+        y_pred.append(pred[0])
+    
+    data = sc.inverse_transform(data)
+    y_test = data[window_size+1:]
+    end = time.time()
+    print('total time for {} is {}s'.format(i,end-begin))
+    plt.plot(y_pred,label='predict')
+    plt.plot(y_test,label='true')
+    plt.legend(loc='upper right')
+    plt.show()
+    
+#SVR，使用sliding window的非在线版本
+#使用SVR进行普通的预测
+from sklearn.svm import SVR
+from sklearn.model_selection import GridSearchCV
+def getBack(series,sc):
+    series = np.reshape(series,(-1,1))
+    series = sc.inverse_transform(series)
+    series = np.reshape(series,(-1))
+    return series
 
+train_split = 0.8
+train_num = int(len(data_list[0])*train_split)
+for i,index in enumerate(data_list):
+    #数据提取
+    data = np.array(data_list[i],'f')
+    sc = MinMaxScaler()
+    data = np.reshape(data,(-1,1))
+    data = sc.fit_transform(data)
+    data = np.reshape(data,(-1))
+    #切分
+    X_train = data[:train_num]
+    X_test = data[train_num:-1]
+    y_train = data[1:train_num+1]
+    y_test = data[train_num+1:]
+    
+    x = getWindow(X_train,window_size)
+    x  = np.reshape(x,(x.shape[0],x.shape[-1]))
+    y_train = y_train[window_size:]
+    
+    begin = time.time()
+    clf = GridSearchCV(SVR(kernel='rbf',gamma='auto',C=1e2),cv=5,param_grid={"gamma":np.logspace(-2,2,5)},scoring='neg_mean_squared_error')
+    clf.fit(x,y_train)
+    print(clf.best_params_,clf.best_score_)
+    
+    x = getWindow(X_test,window_size)
+    x  = np.reshape(x,(x.shape[0],x.shape[-1]))
+    y_test = y_test[window_size:]
+    y_pred = clf.predict(x)
+    end = time.time()
+    print('time :{}s'.format(end-begin))
+    
+    y_test = getBack(y_test,sc)
+    y_pred = getBack(y_pred,sc)
+    
+    plt.figure()
+    plt.plot(y_test, color = 'red', label = 'Real Web View')
+    plt.plot(y_pred, color = 'blue', label = 'Predicted Web View')
+    plt.title('Web View Forecasting{}'.format(i))
+    plt.xlabel('Number of Days from Start')
+    plt.ylabel('Web View')
+    plt.legend()
+    plt.show()
+    print(mean_squared_error(y_test,y_pred))
+    #data back?
+    data = np.reshape(data,(-1,1))
+    data = sc.inverse_transform(data)
+    data = np.reshape(data,(-1))
+    
+#在线版本的SVR
+from sklearn.svm import SVR
+from sklearn.model_selection import GridSearchCV
+def getBack(series,sc):
+    series = np.reshape(series,(-1,1))
+    series = sc.inverse_transform(series)
+    series = np.reshape(series,(-1))
+    return series
+
+train_split = 0.4
+window_size = 100
+train_num = int(len(data_list[0])*train_split)
+for i,index in enumerate(data_list):
+    #数据提取
+    data = np.array(data_list[i],'f')
+    sc = MinMaxScaler()
+    data = np.reshape(data,(-1,1))
+    data = sc.fit_transform(data)
+    data = np.reshape(data,(-1))
+    #切分
+    X_train = data[:train_num]
+    X_test = data[train_num:-1]
+    y_train = data[1:train_num+1]
+    y_test = data[train_num+1:]
+    
+    x = getWindow(X_train,window_size)
+    x  = np.reshape(x,(x.shape[0],x.shape[-1]))
+    y_train = y_train[window_size:]
+    
+    begin = time.time()
+    clf = SVR(kernel='rbf',gamma=0.1,C=1e2)
+    clf.fit(x,y_train)
+    
+    #进入在线训练环节
+    predict_counter = 0
+    y_pred = []
+    for t in range(train_num+1,len(data)-1):
+        predict_counter += 1
+        #预测当前值
+        #打包之前的内容去预测
+        passX = data[t-window_size:t]
+        passX = np.reshape(passX,(1,-1))
+        prediction = clf.predict(passX)
+        y_pred.append(prediction.item())
+        #开始训练
+        if predict_counter >= predict_window:
+            training_data = getWindow(data[t-2*window_size:t],window_size)
+            training_data = np.reshape(training_data,(training_data.shape[0],training_data.shape[-1]))
+            label = data[t-window_size+1:t+1]
+            predict_counter = 0
+            clf.fit(training_data,label)
+    
+    y_pred = np.array(y_pred)
+    end = time.time()
+    print('time :{}s'.format(end-begin))
+    y_true = data[len(data)-len(y_pred):]
+    y_true = getBack(y_true,sc)
+    y_pred = getBack(y_pred,sc)
+    
+    plt.figure()
+    plt.plot(y_true, color = 'red', label = 'Real Web View')
+    plt.plot(y_pred, color = 'blue', label = 'Predicted Web View')
+    plt.title('Web View Forecasting{}'.format(i))
+    plt.xlabel('Number of Days from Start')
+    plt.ylabel('Web View')
+    plt.legend()
+    plt.show()
+    print(mean_squared_error(y_true,y_pred))
+    
