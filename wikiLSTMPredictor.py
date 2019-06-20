@@ -42,6 +42,34 @@ def getSignal(length):
         y[i] = ans
     return y
 
+import keras
+class LossHistory(keras.callbacks.Callback):
+    def on_train_begin(self, logs={}):
+        self.losses = {'batch':[], 'epoch':[]}
+        self.val_loss = {'batch':[], 'epoch':[]}
+
+    def on_batch_end(self, batch, logs={}):
+        self.losses['batch'].append(logs.get('loss'))
+        self.val_loss['batch'].append(logs.get('val_loss'))
+
+    def on_epoch_end(self, batch, logs={}):
+        self.losses['epoch'].append(logs.get('loss'))
+        self.val_loss['epoch'].append(logs.get('val_loss'))
+
+    def loss_plot(self, loss_type):
+        iters = range(len(self.losses[loss_type]))
+        plt.figure()
+        # loss
+        plt.plot(iters, self.losses[loss_type], 'g', label='train loss')
+        if loss_type == 'epoch':
+            # val_loss
+            plt.plot(iters, self.val_loss[loss_type], 'k', label='val loss')
+        plt.grid(True)
+        plt.xlabel(loss_type)
+        plt.ylabel('acc-loss')
+        plt.legend(loc="upper right")
+        plt.show()
+
 #普通的Keras LSTM
 #Keras LSTM
 from sklearn.preprocessing import MinMaxScaler
@@ -58,7 +86,7 @@ cols = train.columns[1:-1]
 hidden_size = 8
 output_size = 1
 batch_size = 8
-window_size = 5
+window_size = 20
 epoch_time = 100
 
 data_list[0] = getSignal(500)
@@ -93,6 +121,7 @@ for i,index in enumerate(data_list):
     x = getWindow(X_train,window_size)
     y_train = y_train[window_size:]
     #Keras LSTM
+    history = LossHistory()
     begin = time.time()
     regressor = Sequential()
     regressor.add(LSTM(hidden_size, return_sequences=True, input_shape=(x.shape[1], window_size)))
@@ -100,7 +129,7 @@ for i,index in enumerate(data_list):
     regressor.add(LSTM(hidden_size))
     regressor.add(Dense(output_size))
     regressor.compile(loss='mean_squared_error',optimizer='adam')
-    regressor.fit(x, y_train, batch_size = batch_size, epochs = epoch_time, verbose = 0.2,shuffle=False)
+    regressor.fit(x, y_train, batch_size = batch_size, epochs = epoch_time, verbose = 0.2,shuffle=False,callbacks=[history])
     #进入测试环节
     inputs = X_test
     inputs = np.reshape(inputs,(-1,1))
@@ -121,6 +150,7 @@ for i,index in enumerate(data_list):
     plt.ylabel('Web View')
     plt.legend()
     plt.show()
+    history.loss_plot('epoch')
     print(mean_squared_error(y_test,y_pred))
 
 #stateful LSTM
@@ -201,7 +231,7 @@ for i,index in enumerate(data_list):
     plt.show()
     print(mean_squared_error(y_test,y_pred))
 
-#Keras online training without stateful
+#Keras online training without stateful。online training效果不是很好，可能是滑动窗口的问题
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_squared_error
 from keras.models import Sequential
@@ -296,3 +326,6 @@ for i,index in enumerate(data_list):
     plt.legend()
     plt.show()
     print(mean_squared_error(y_true,y_pred))
+
+# 随机森林，裸在线训练
+
